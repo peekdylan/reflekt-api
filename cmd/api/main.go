@@ -71,9 +71,11 @@ func main() {
 	mux.HandleFunc("GET /v1/entries", cfg.MiddlewareAuth(cfg.HandlerGetEntries))
 	mux.HandleFunc("DELETE /v1/entries/{id}", cfg.MiddlewareAuth(cfg.HandlerDeleteEntry))
 
+	// Wrap the entire router with CORS middleware so the frontend can
+	// communicate with the API during local development
 	srv := &http.Server{
 		Addr:    ":" + port,
-		Handler: mux,
+		Handler: api.MiddlewareCORS(mux),
 	}
 
 	fmt.Printf("Reflekt API listening on port %s\n", port)

@@ -17,6 +17,26 @@ const (
 	contextKeyUserID contextKey = "userID"
 )
 
+// MiddlewareCORS adds the necessary headers to allow the React Native web app
+// running on localhost:8081 to make requests to our API on localhost:8080.
+// In production this would be locked down to your actual domain.
+func MiddlewareCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Allow requests from the Expo web dev server
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// Handle preflight OPTIONS requests — browsers send these before the real request
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 // MiddlewareAuth protects routes that require a logged-in user.
 // It reads the JWT token from the Authorization header, validates it,
 // and injects the user ID into the request context for handlers to use.
