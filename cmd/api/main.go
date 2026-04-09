@@ -51,8 +51,9 @@ func main() {
 
 	// Initialize the API config with all shared dependencies
 	cfg := &api.APIConfig{
-		DB:        database.New(db),
-		JwtSecret: jwtSecret,
+		DB:           database.New(db),
+		JwtSecret:    jwtSecret,
+		AnthropicKey: os.Getenv("ANTHROPIC_API_KEY"),
 	}
 
 	// Set up the HTTP router

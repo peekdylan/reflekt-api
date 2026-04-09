@@ -1,12 +1,18 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
+	// Internal packages
+	"github.com/peekdylan/reflekt-api/internal/ai"
 	"github.com/peekdylan/reflekt-api/internal/database"
+
+	// Third-party packages
+	"github.com/google/uuid"
 )
 
 // createEntryRequest defines the expected JSON body for creating a new entry.
@@ -33,7 +39,7 @@ type entryResponse struct {
 // formatEntry converts a database.Entry into an entryResponse for the API.
 // Keeping this conversion in one place makes it easy to change later.
 func formatEntry(entry database.Entry) entryResponse {
-	// Handle nullable fields safely
+	// Handle nullable fields safely — these are empty until AI analysis completes
 	mood := ""
 	if entry.Mood.Valid {
 		mood = entry.Mood.String
@@ -58,6 +64,8 @@ func formatEntry(entry database.Entry) entryResponse {
 }
 
 // HandlerCreateEntry creates a new journal entry for the authenticated user.
+// After saving the entry, it triggers AI analysis in the background so the
+// user gets an instant response without waiting for the AI to finish.
 func (cfg *APIConfig) HandlerCreateEntry(w http.ResponseWriter, r *http.Request) {
 	// Get the authenticated user's ID from the request context (set by middleware)
 	userID, ok := getUserIDFromContext(r)
@@ -103,7 +111,32 @@ func (cfg *APIConfig) HandlerCreateEntry(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Respond immediately so the user isn't waiting for AI analysis
 	respondWithJSON(w, http.StatusCreated, formatEntry(entry))
+
+	// Analyze the entry with Claude AI in the background using a goroutine.
+	// The mood and analysis will be saved to the database once Claude responds.
+	// We use context.Background() because the request context will be cancelled
+	// after we respond, but we still want the goroutine to finish its work.
+	go func() {
+		result, err := ai.AnalyzeEntry(cfg.AnthropicKey, entry.Title, entry.Body)
+		if err != nil {
+			log.Printf("AI analysis failed for entry %s: %v", entry.ID, err)
+			return
+		}
+
+		log.Printf("AI analysis complete for entry %s — mood: %s", entry.ID, result.Mood)
+
+		// Update the entry with the AI-generated mood and analysis
+		_, err = cfg.DB.UpdateEntryAIAnalysis(context.Background(), database.UpdateEntryAIAnalysisParams{
+			ID:         entry.ID,
+			Mood:       database.NullString(result.Mood),
+			AiAnalysis: database.NullString(result.Analysis),
+		})
+		if err != nil {
+			log.Printf("Failed to save AI analysis for entry %s: %v", entry.ID, err)
+		}
+	}()
 }
 
 // HandlerGetEntries returns all journal entries for the authenticated user,
