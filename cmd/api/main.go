@@ -58,12 +58,17 @@ func main() {
 	// Set up the HTTP router
 	mux := http.NewServeMux()
 
-	// Health check
+	// Health check — verifies the API is running
 	mux.HandleFunc("GET /v1/health", cfg.HandlerHealth)
 
-	// Auth routes
+	// Auth routes — public, no token required
 	mux.HandleFunc("POST /v1/register", cfg.HandlerRegister)
 	mux.HandleFunc("POST /v1/login", cfg.HandlerLogin)
+
+	// Journal entry routes — all protected by auth middleware
+	mux.HandleFunc("POST /v1/entries", cfg.MiddlewareAuth(cfg.HandlerCreateEntry))
+	mux.HandleFunc("GET /v1/entries", cfg.MiddlewareAuth(cfg.HandlerGetEntries))
+	mux.HandleFunc("DELETE /v1/entries/{id}", cfg.MiddlewareAuth(cfg.HandlerDeleteEntry))
 
 	srv := &http.Server{
 		Addr:    ":" + port,
