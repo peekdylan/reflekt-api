@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: reflekt-db
+    environment:
+      POSTGRES_USER: reflekt
+      POSTGRES_PASSWORD: reflektpass
+      POSTGRES_DB: reflekt
+    ports:
+      - "5432:5432"
+    volumes:
+      - reflekt-db-data:/var/lib/postgresql/data
+
+volumes:
+  reflekt-db-data:
